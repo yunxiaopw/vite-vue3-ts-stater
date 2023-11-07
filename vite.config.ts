@@ -8,7 +8,6 @@ import viteCompression from 'vite-plugin-compression';
 
 // https://vitejs.dev/config/
 export default ({ mode }) => {
-  // console.log('mode', loadEnv(mode, process.cwd()).VITE_BASE_URL);//使用loadEnv在vite.config.ts中读取环境变量
   const baseUrl = loadEnv(mode, process.cwd()).VITE_BASE_URL;
   return defineConfig({
     plugins: [
@@ -47,8 +46,8 @@ export default ({ mode }) => {
     },
     css: {
       preprocessorOptions: {
-        scss: {
-          additionalData: '@import "@/assets/styles/index.scss";',
+        less: {
+          additionalData: '@import "@/assets/styles/index.less";',
         },
       },
     },

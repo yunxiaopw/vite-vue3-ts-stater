@@ -1,40 +1,125 @@
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { RequestConfigType, ResponseType } from './types';
+import { ElMessage } from 'element-plus';
 
-/*
- * 创建实例
- * 与后端服务通信
- */
-const HttpClient = axios.create({
-  baseURL: import.meta.env.VITE_BASE_URL,
+const env = import.meta.env;
+const onError = (err: any) => {
+  if (err.message.includes('timeout')) {
+    ElMessage({
+      message: 'error',
+      type: 'error',
+    });
+  }
+  return Promise.reject(err);
+};
+
+const instance: AxiosInstance = axios.create({
+  baseURL: env.VITE_BASE_URL,
+  // baseURL: 'http://api-v2.apkssr.com',
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-/**
- * 请求拦截器
- * 功能：配置请求头
- */
-HttpClient.interceptors.request.use(
-  (config) => {
-    const token = '222';
-    config.headers.authorization = 'Bearer ' + token;
-    return config;
-  },
-  (error) => {
-    console.error('网络错误，请稍后重试');
-    return Promise.reject(error);
-  },
-);
+instance.interceptors.request.use((config: AxiosRequestConfig) => {
+  config.headers['Access-Token'] = localStorage.getItem('Access_Token');
+  config.headers['uid'] = localStorage.getItem('HERO_UID');
+  return {
+    ...config,
+  };
+}, onError);
+
+instance.interceptors.response.use((response: AxiosResponse) => {
+  if (response && response.data) {
+    return Promise.resolve(response);
+  } else {
+    return Promise.reject('response error');
+  }
+}, onError);
+
+const request = async <T>(config: RequestConfigType): Promise<ResponseType<T>> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const res = await instance.request<ResponseType<T>>(config);
+
+      const data = res.data;
+      if (data.code == 0) {
+        if (config.successToast) {
+          ElMessage({
+            message: data.msg || 'success！',
+            type: 'success',
+          });
+        }
+        resolve(data);
+      } else {
+        if (data.code === 403 || data.code === 401) {
+          window.location.href = env.VITE_BASE_URL;
+        }
+        if (config.errorToast) {
+          ElMessage({
+            message: t(`apiCodeErr.${data.code}`),
+            type: 'error',
+          });
+        }
+        reject(data);
+      }
+    } catch (err: any) {
+      const data = {
+        code: -1,
+        msg: 'error',
+        data: null as any,
+      };
+      ElMessage({
+        message: data.msg,
+        type: 'error',
+      });
+      reject(data);
+    }
+  });
+};
 
 /**
- * 响应拦截器
- * 功能：处理异常
+ *
+ * @param url
+ * @param params
+ * @param successToast
+ * @param errorToast
  */
-HttpClient.interceptors.response.use(
-  (config) => {
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  },
-);
+export const getRequest = function <T>(
+  url: string,
+  params: object = {},
+  successToast = false,
+  errorToast = true,
+): Promise<ResponseType<T>> {
+  return request<T>({
+    url,
+    method: 'get',
+    params: params,
+    successToast,
+    errorToast,
+  });
+};
 
-export default HttpClient;
+/**
+ *  post接口默认提示成功和失败
+ * @param url
+ * @param params
+ * @param successToast
+ * @param errorToast
+ */
+export const postRequest = function <T>(
+  url: string,
+  params: object = {},
+  successToast = false,
+  errorToast = true,
+): Promise<ResponseType<T>> {
+  return request<T>({
+    url,
+    method: 'post',
+    data: params,
+    successToast,
+    errorToast,
+  });
+};
+
+export default request;
